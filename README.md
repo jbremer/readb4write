@@ -56,5 +56,5 @@ Proof of Concept 2:
 
 Proof of Concept 3:
 
-- uninitialized member `a[0]` in `main`
-- uninitialized member `a[2]` in `main`
+- uninitialized index `a[0]` in `main`
+- uninitialized index `a[2]` in `main`
