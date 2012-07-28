@@ -97,8 +97,14 @@ void instruction(INS ins, void *v)
 
 TLS_KEY alloc_key;
 
-void alloc_before(THREADID tid, UINT32 size)
+void alloc_before(THREADID tid, UINT32 flags, int size)
 {
+    // if the flags contain the HEAP_ZERO_MEMORY flag, then the memory is
+    // initialized to zero
+    if(flags & HEAP_ZERO_MEMORY) {
+        size = -size;
+    }
+
     // temporary store the size to be allocated in TLS because we cannot pass
     // function arguments to IPOINT_BEFORE callbacks
     PIN_SetThreadData(alloc_key, (void *) size, tid);
@@ -106,9 +112,15 @@ void alloc_before(THREADID tid, UINT32 size)
 
 void alloc_after(THREADID tid, ADDRINT addr)
 {
-    UINT32 size = (UINT32) PIN_GetThreadData(alloc_key, tid);
+    int size = (int) PIN_GetThreadData(alloc_key, tid);
     if(addr != 0 && size != 0) {
-        taint_undefined(addr, size);
+        // negative size indicates memory initialized to zero
+        if(size < 0) {
+            taint_define(addr, -size);
+        }
+        else {
+            taint_undefined(addr, size);
+        }
     }
 }
 
@@ -124,8 +136,8 @@ void image(IMG img, void *v)
 
                 // second parameter defines the size to be allocated
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR) &alloc_before,
-                    IARG_THREAD_ID, IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
-                    IARG_END);
+                    IARG_THREAD_ID, IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+                    IARG_FUNCARG_ENTRYPOINT_VALUE, 2, IARG_END);
 
                 // return value is the address that has been allocated
                 RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR) &alloc_after,
